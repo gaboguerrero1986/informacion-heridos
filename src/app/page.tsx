@@ -17,10 +17,27 @@ type Persona = {
 export default function Home() {
   const [query, setQuery] = useState('');
   const [hospital, setHospital] = useState('');
+  const [hospitalsList, setHospitalsList] = useState<string[]>([]);
   const [results, setResults] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Cargar hospitales dinámicamente
+    const fetchHospitals = async () => {
+      try {
+        const res = await fetch('/api/hospitals');
+        const data = await res.json();
+        if (data.data) {
+          setHospitalsList(data.data);
+        }
+      } catch (err) {
+        console.error('Error cargando hospitales', err);
+      }
+    };
+    fetchHospitals();
+  }, []);
 
   // Debounce para la búsqueda (busca automáticamente al dejar de escribir)
   useEffect(() => {
@@ -95,10 +112,9 @@ export default function Home() {
             onChange={(e) => setHospital(e.target.value)}
           >
             <option value="">Todos los hospitales / centros</option>
-            {/* Aquí se podrían cargar dinámicamente, por ahora unos ejemplos de placeholders o dejarlo que escriban */}
-            <option value="Hospital General">Hospital General</option>
-            <option value="Clínica Central">Clínica Central</option>
-            <option value="Centro de Refugio">Centro de Refugio</option>
+            {hospitalsList.map((h, idx) => (
+              <option key={idx} value={h}>{h}</option>
+            ))}
           </select>
         </div>
       </section>

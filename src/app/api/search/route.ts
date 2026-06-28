@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     }
 
     if (hospital && hospital.trim() !== '') {
-      query = query.eq('hospital', hospital);
+      // Uso de ilike para que sea insensible a mayúsculas
+      query = query.ilike('hospital', `%${hospital.trim()}%`);
     }
 
     // Ordenar por fecha de creación descendente

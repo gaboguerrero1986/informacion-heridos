@@ -13,7 +13,57 @@ export default function AdminPage() {
   const [sqlQuery, setSqlQuery] = useState('');
   const [sqlStatus, setSqlStatus] = useState('');
 
+  // Manual Insert Form State
+  const [manualNombre, setManualNombre] = useState('');
+  const [manualHospital, setManualHospital] = useState('');
+  const [manualCedula, setManualCedula] = useState('');
+  const [manualEdad, setManualEdad] = useState('');
+  const [manualProcedencia, setManualProcedencia] = useState('');
+  const [manualNota, setManualNota] = useState('');
+  const [manualStatus, setManualStatus] = useState('');
+
   const [loading, setLoading] = useState(false);
+
+  const handleManualInsert = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualNombre || !manualHospital) return;
+
+    setLoading(true);
+    setManualStatus('Guardando...');
+
+    try {
+      const res = await fetch('/api/admin/insert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${password}`
+        },
+        body: JSON.stringify({
+          nombre: manualNombre,
+          hospital: manualHospital,
+          cedula: manualCedula,
+          edad: manualEdad,
+          procedencia: manualProcedencia,
+          nota: manualNota
+        })
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        setManualStatus(`Éxito: ${data.message}`);
+        setManualNombre('');
+        setManualCedula('');
+        setManualEdad('');
+        setManualProcedencia('');
+        setManualNota('');
+      } else {
+        setManualStatus(`Error: ${data.message}`);
+      }
+    } catch (err) {
+      setManualStatus('Error al guardar el registro');
+    }
+    setLoading(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -196,6 +246,45 @@ export default function AdminPage() {
             {sqlStatus && (
               <div className={`note-box ${sqlStatus.includes('Error') ? 'danger' : 'success'}`} style={{ backgroundColor: sqlStatus.includes('Error') ? 'var(--danger-bg)' : 'var(--success-bg)', borderColor: sqlStatus.includes('Error') ? 'var(--danger)' : 'var(--success)' }}>
                 {sqlStatus}
+              </div>
+            )}
+          </form>
+        </section>
+
+        {/* Sección Registro Manual */}
+        <section className="card">
+          <h2 className="card-title" style={{ marginBottom: '1rem' }}>3. Registrar Persona Manualmente</h2>
+          <form onSubmit={handleManualInsert} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div className="input-group">
+              <label>Nombre Completo *</label>
+              <input type="text" className="input-field" value={manualNombre} onChange={(e) => setManualNombre(e.target.value)} required />
+            </div>
+            <div className="input-group">
+              <label>Hospital / Centro *</label>
+              <input type="text" className="input-field" value={manualHospital} onChange={(e) => setManualHospital(e.target.value)} required />
+            </div>
+            <div className="input-group">
+              <label>Cédula / Documento (Opcional)</label>
+              <input type="text" className="input-field" value={manualCedula} onChange={(e) => setManualCedula(e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Edad (Opcional)</label>
+              <input type="text" className="input-field" value={manualEdad} onChange={(e) => setManualEdad(e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Procedencia (Opcional)</label>
+              <input type="text" className="input-field" value={manualProcedencia} onChange={(e) => setManualProcedencia(e.target.value)} />
+            </div>
+            <div className="input-group">
+              <label>Nota / Estado (Opcional)</label>
+              <input type="text" className="input-field" value={manualNota} onChange={(e) => setManualNota(e.target.value)} />
+            </div>
+            <button type="submit" className="badge warning" style={{ padding: '0.75rem', justifyContent: 'center', fontSize: '1rem', border: 'none', cursor: 'pointer', background: 'var(--warning)', color: '#000' }} disabled={loading}>
+              {loading ? 'Guardando...' : 'Añadir Registro'}
+            </button>
+            {manualStatus && (
+              <div className={`note-box ${manualStatus.includes('Error') ? 'danger' : 'success'}`} style={{ backgroundColor: manualStatus.includes('Error') ? 'var(--danger-bg)' : 'var(--success-bg)', borderColor: manualStatus.includes('Error') ? 'var(--danger)' : 'var(--success)' }}>
+                {manualStatus}
               </div>
             )}
           </form>
