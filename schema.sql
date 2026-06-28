@@ -27,7 +27,31 @@ CREATE INDEX personas_rescatadas_hospital_idx ON personas_rescatadas (hospital);
 -- pero NO podrán INSERTAR, ACTUALIZAR o BORRAR desde la web pública.
 ALTER TABLE personas_rescatadas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Permitir lectura pública" 
-ON personas_rescatadas FOR SELECT 
-TO public 
+CREATE POLICY "Permitir lectura pública"
+ON personas_rescatadas FOR SELECT
+TO public
 USING (true);
+
+-- 6. Tabla de visitas para la estadística del panel admin.
+-- Se registra una fila por navegador (persona) que entra a la página.
+-- Solo el backend (service_role) escribe/lee aquí, por eso NO lleva políticas públicas.
+CREATE TABLE IF NOT EXISTS visitas (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  visitor_id TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS visitas_visitor_idx ON visitas (visitor_id);
+CREATE INDEX IF NOT EXISTS visitas_created_idx ON visitas (created_at);
+
+ALTER TABLE visitas ENABLE ROW LEVEL SECURITY;
+
+-- 7. Tabla de configuración (clave-valor). Ej: el correo de contacto editable
+-- desde el panel admin. Solo el backend (service_role) escribe/lee.
+CREATE TABLE IF NOT EXISTS configuracion (
+  clave TEXT PRIMARY KEY,
+  valor TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;

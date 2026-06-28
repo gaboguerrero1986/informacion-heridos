@@ -1,38 +1,40 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { uniqueHospitalNames } from '@/lib/normalizeHospital';
 
 export async function GET() {
   try {
-    // Para obtener hospitales únicos en Supabase sin escribir RPC de SQL complejo,
-    // usamos una llamada regular, pero a la hora de renderizar podemos deducir únicos en el cliente o acá.
-    // Dado que Supabase JS no tiene un "SELECT DISTINCT" directo sin RPC nativo,
-    // seleccionaremos todos los hospitales no nulos y los filtraremos en Node.js.
-    // Si la DB crece muchísimo (decenas de miles), convendría un RPC.
-    
-    const { data, error } = await supabase
-      .from('personas_rescatadas')
-      .select('hospital')
-      .not('hospital', 'is', null)
-      .neq('hospital', '');
+    // Traemos TODOS los valores de hospital en bloques de 1000 (límite de Supabase
+    // por petición). Si un hospital tiene miles de filas, sin esto solo
+    // aparecerían unos pocos hospitales en el filtro.
+    const CHUNK = 1000;
+    const MAX_CHUNKS = 50;
+    const valores: (string | null)[] = [];
 
-    if (error) {
-      console.error('Error fetching hospitals:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    for (let i = 0; i < MAX_CHUNKS; i++) {
+      const from = i * CHUNK;
+      const { data, error } = await supabase
+        .from('personas_rescatadas')
+        .select('hospital')
+        .not('hospital', 'is', null)
+        .neq('hospital', '')
+        .order('hospital', { ascending: true })
+        .range(from, from + CHUNK - 1);
+
+      if (error) {
+        console.error('Error fetching hospitals:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      const batch = data || [];
+      valores.push(...batch.map((r) => r.hospital as string));
+      if (batch.length < CHUNK) break;
     }
 
-    // Extraer y normalizar nombres únicos, ignorando case (capitalizando la primera letra por estética)
-    const uniqueHospitalsMap = new Map<string, string>();
-    
-    data.forEach(item => {
-      const h = item.hospital as string;
-      const key = h.trim().toLowerCase();
-      // Guardar la primera versión capitalizada que encontremos
-      if (!uniqueHospitalsMap.has(key)) {
-        uniqueHospitalsMap.set(key, h.trim());
-      }
-    });
-
-    const uniqueHospitals = Array.from(uniqueHospitalsMap.values()).sort();
+    // Unificamos sin distinguir mayúsculas NI acentos ("Periférico" = "Periferico").
+    const uniqueHospitals = uniqueHospitalNames(valores).sort((a, b) =>
+      a.localeCompare(b, 'es', { sensitivity: 'base' })
+    );
 
     return NextResponse.json({ data: uniqueHospitals });
   } catch (err) {

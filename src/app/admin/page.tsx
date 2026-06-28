@@ -1,11 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
+  // Estadística de visitas
+  const [visitStats, setVisitStats] = useState<{ total: number; hoy: number } | null>(null);
+  const [visitError, setVisitError] = useState('');
+
+  // Correo de contacto editable
+  const [contactEmail, setContactEmail] = useState('');
+  const [contactStatus, setContactStatus] = useState('');
+  const [savingContact, setSavingContact] = useState(false);
+
   const [file, setFile] = useState<File | null>(null);
   const [hospital, setHospital] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
@@ -30,6 +39,58 @@ export default function AdminPage() {
   const [editForm, setEditForm] = useState<any>({});
 
   const [loading, setLoading] = useState(false);
+
+  // Al autenticar, cargamos la estadística de visitas.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchVisits = async () => {
+      try {
+        const res = await fetch('/api/admin/visits', {
+          headers: { Authorization: `Bearer ${password}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setVisitStats({ total: data.total ?? 0, hoy: data.hoy ?? 0 });
+          setVisitError('');
+        } else {
+          setVisitError(data.message || 'No se pudieron cargar las visitas.');
+        }
+      } catch {
+        setVisitError('No se pudieron cargar las visitas.');
+      }
+    };
+    fetchVisits();
+
+    // Cargar el correo de contacto actual.
+    const fetchContact = async () => {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        setContactEmail(data.contactEmail || '');
+      } catch {
+        /* sin bloqueo */
+      }
+    };
+    fetchContact();
+  }, [isAuthenticated, password]);
+
+  const handleSaveContact = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingContact(true);
+    setContactStatus('Guardando...');
+    try {
+      const res = await fetch('/api/admin/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${password}` },
+        body: JSON.stringify({ contactEmail }),
+      });
+      const data = await res.json();
+      setContactStatus(data.success ? `Éxito: ${data.message}` : `Error: ${data.message}`);
+    } catch {
+      setContactStatus('Error al guardar el correo');
+    }
+    setSavingContact(false);
+  };
 
   const handleAdminSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,10 +194,11 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setIsAuthenticated(true);
       } else {
-        alert('Contraseña incorrecta');
+        alert(data.message || 'Contraseña incorrecta');
       }
     } catch (err) {
       alert('Error al autenticar');
@@ -243,6 +305,67 @@ export default function AdminPage() {
       </header>
 
       <div className="results-grid" style={{ gridTemplateColumns: '1fr', gap: '2rem' }}>
+        {/* Estadística de visitas */}
+        <section className="card">
+          <h2 className="card-title" style={{ marginBottom: '1rem' }}>Visitas a la página</h2>
+          {visitStats ? (
+            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700 }}>
+                  {visitStats.total.toLocaleString('es')}
+                </div>
+                <div className="text-muted">personas han entrado en total</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700 }}>
+                  {visitStats.hoy.toLocaleString('es')}
+                </div>
+                <div className="text-muted">han entrado hoy</div>
+              </div>
+            </div>
+          ) : visitError ? (
+            <p className="text-muted">{visitError}</p>
+          ) : (
+            <p className="text-muted">Cargando…</p>
+          )}
+        </section>
+
+        {/* Correo de contacto */}
+        <section className="card">
+          <h2 className="card-title" style={{ marginBottom: '1rem' }}>Correo de Contacto</h2>
+          <p className="text-muted" style={{ marginBottom: '1rem', fontSize: '0.875rem' }}>
+            Este correo aparece en el botón de contacto de la página pública. Déjalo vacío para ocultar el botón.
+          </p>
+          <form onSubmit={handleSaveContact} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <input
+              type="email"
+              className="input-field"
+              placeholder="correo@ejemplo.com"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
+            />
+            <button
+              type="submit"
+              className="badge primary"
+              style={{ padding: '0.75rem', justifyContent: 'center', fontSize: '1rem', border: 'none', cursor: 'pointer', background: 'var(--primary)' }}
+              disabled={savingContact}
+            >
+              {savingContact ? 'Guardando...' : 'Guardar Correo'}
+            </button>
+            {contactStatus && (
+              <div
+                className={`note-box ${contactStatus.includes('Error') ? 'danger' : 'success'}`}
+                style={{
+                  backgroundColor: contactStatus.includes('Error') ? 'var(--danger-bg)' : 'var(--success-bg)',
+                  borderColor: contactStatus.includes('Error') ? 'var(--danger)' : 'var(--success)',
+                }}
+              >
+                {contactStatus}
+              </div>
+            )}
+          </form>
+        </section>
+
         {/* Sección Subida de Excel */}
         <section className="card">
           <h2 className="card-title" style={{ marginBottom: '1rem' }}>1. Subir Archivo Excel</h2>
