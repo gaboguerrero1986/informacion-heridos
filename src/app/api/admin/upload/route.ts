@@ -30,24 +30,30 @@ export async function POST(request: Request) {
     const recordsToInsert = rows.map(row => {
       const normalizedRow: any = {};
       for (const key in row) {
-        // Remove spaces, convert to lowercase, and remove accents
-        const cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        // Quitamos tildes, espacios y caracteres especiales para que sea muy fácil hacer match
+        const cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "");
         normalizedRow[cleanKey] = row[key];
       }
 
-      if (!normalizedRow.nombre && !normalizedRow.nombres && !normalizedRow.name) {
+      const nombreValue = normalizedRow.nombre || normalizedRow.nombres || normalizedRow.name || normalizedRow.nombreyapellido || normalizedRow.nombresyapellidos || normalizedRow.paciente || normalizedRow.herido;
+
+      if (!nombreValue) {
         return null;
       }
 
-      const cedulaRaw = normalizedRow.cedula || normalizedRow.ci || normalizedRow.documento || normalizedRow.identificacion || normalizedRow.dni;
+      const cedulaRaw = normalizedRow.cedula || normalizedRow.ci || normalizedRow.documento || normalizedRow.identificacion || normalizedRow.dni || normalizedRow.documentodeidentidad || normalizedRow.ceduladeidentidad;
       const cedulaValue = cedulaRaw ? String(cedulaRaw).replace(/[\.\-\s]/g, '') : null;
 
+      const edadValue = normalizedRow.edad || normalizedRow.anos || normalizedRow.age;
+      const procedenciaValue = normalizedRow.procedencia || normalizedRow.origen || normalizedRow.direccion || normalizedRow.lugar;
+      const notaValue = normalizedRow.nota || normalizedRow.notas || normalizedRow.observacion || normalizedRow.observaciones || normalizedRow.estado || normalizedRow.diagnostico || normalizedRow.detalles;
+
       return {
-        nombre: String(normalizedRow.nombre || normalizedRow.nombres || normalizedRow.name || ''),
+        nombre: String(nombreValue),
         cedula: cedulaValue,
-        edad: normalizedRow.edad ? String(normalizedRow.edad) : null,
-        procedencia: normalizedRow.procedencia ? String(normalizedRow.procedencia) : null,
-        nota: normalizedRow.nota ? String(normalizedRow.nota) : null,
+        edad: edadValue ? String(edadValue) : null,
+        procedencia: procedenciaValue ? String(procedenciaValue) : null,
+        nota: notaValue ? String(notaValue) : null,
         hospital: hospitalName,
         estado: 'Registrado'
       };
