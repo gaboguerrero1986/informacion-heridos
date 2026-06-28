@@ -133,10 +133,11 @@ export default function AdminPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password })
       });
-      if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
         setIsAuthenticated(true);
       } else {
-        alert('Contraseña incorrecta');
+        alert(data.message || 'Contraseña incorrecta');
       }
     } catch (err) {
       alert('Error al autenticar');
