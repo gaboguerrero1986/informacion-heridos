@@ -22,6 +22,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState('');
+  const [stats, setStats] = useState<{ total: number; lastUpdate: string | null } | null>(null);
+
+  // Correo de contacto (configurable). Si no está definido, no se muestra el botón.
+  const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || '';
 
   useEffect(() => {
     // Cargar hospitales dinámicamente
@@ -36,7 +40,18 @@ export default function Home() {
         console.error('Error cargando hospitales', err);
       }
     };
+    // Cargar estadísticas (cuántos registros hay y última actualización)
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        setStats({ total: data.total ?? 0, lastUpdate: data.lastUpdate ?? null });
+      } catch (err) {
+        console.error('Error cargando estadísticas', err);
+      }
+    };
     fetchHospitals();
+    fetchStats();
   }, []);
 
   // Debounce para la búsqueda (busca automáticamente al dejar de escribir).
@@ -84,7 +99,32 @@ export default function Home() {
     <main className="container">
       <header className="header">
         <h1>Búsqueda de Rescatados</h1>
-        <p>Encuentra información sobre personas registradas en hospitales o refugios.</p>
+        {stats ? (
+          <p>
+            {stats.total.toLocaleString('es')} persona(s) registrada(s)
+            {stats.lastUpdate && (
+              <> · Última actualización: {new Date(stats.lastUpdate).toLocaleString('es')}</>
+            )}
+          </p>
+        ) : (
+          <p>Encuentra información sobre personas registradas en hospitales o refugios.</p>
+        )}
+        {contactEmail && (
+          <a
+            href={`mailto:${contactEmail}?subject=${encodeURIComponent('Quiero subir datos de un sitio (rescatados)')}`}
+            className="badge primary"
+            style={{
+              display: 'inline-flex',
+              marginTop: '1rem',
+              padding: '0.6rem 1.25rem',
+              textDecoration: 'none',
+              background: 'var(--primary)',
+              cursor: 'pointer',
+            }}
+          >
+            Contacto / Subir datos de un sitio
+          </a>
+        )}
       </header>
 
       <section className="search-container">

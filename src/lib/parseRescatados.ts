@@ -186,12 +186,14 @@ export function parseRescatados(rows: unknown[][], hospitalName: string): ParseR
     const procedencia = cleanValue(get(row, 'procedencia'));
     const nota = cleanValue(get(row, 'nota'));
 
-    // Detección de menores: si lo dice alguna celda y no hay edad, lo marcamos.
+    // Menor de edad: si la edad (u otra celda) dice "menor"/"niño"/"bebé" y NO
+    // hay un número de edad, dejamos la edad como "Menor de edad".
     const rawCedula = get(row, 'cedula');
-    const combinedText = [edad, nota, rawCedula ? String(rawCedula) : '']
-      .filter(Boolean)
-      .join(' ');
-    if (!edad && MINOR_REGEX.test(combinedText)) {
+    const edadTieneNumero = edad ? /\d/.test(edad) : false;
+    const mencionaMenor = MINOR_REGEX.test(
+      [edad, nota, rawCedula ? String(rawCedula) : ''].filter(Boolean).join(' ')
+    );
+    if (mencionaMenor && !edadTieneNumero) {
       edad = 'Menor de edad';
     }
 

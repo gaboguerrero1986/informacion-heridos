@@ -54,13 +54,19 @@ export async function GET(request: Request) {
     // CASO 2: búsqueda por nombre o cédula.
     let query = supabase.from('personas_rescatadas').select('*');
 
-    // Limpiamos la búsqueda de puntos, guiones y espacios por si es una cédula.
-    const cleanQ = q.replace(/[.\-\s]/g, '');
+    // Para la cédula nos quedamos SOLO con los dígitos. Así "14.072.268",
+    // "14072268" o "V-14.072.268" buscan todos la cédula 14072268.
+    const digits = q.replace(/\D/g, '');
     // Escapamos comas y paréntesis para no romper la sintaxis del filtro .or() de PostgREST.
     const safeQ = q.replace(/[(),]/g, ' ');
-    const safeCedula = cleanQ.replace(/[(),]/g, '');
 
-    query = query.or(`nombre.ilike.%${safeQ}%,cedula.ilike.%${safeCedula}%`);
+    const orParts = [`nombre.ilike.%${safeQ}%`];
+    // Solo buscamos por cédula si hay suficientes dígitos (evita coincidir con todo).
+    if (digits.length >= 4) {
+      orParts.push(`cedula.ilike.%${digits}%`);
+    }
+
+    query = query.or(orParts.join(','));
 
     if (hospital !== '') {
       query = query.ilike('hospital', `%${hospital}%`);
