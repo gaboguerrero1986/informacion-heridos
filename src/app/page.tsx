@@ -180,33 +180,10 @@ export default function Home() {
           <p>Encuentra información sobre personas registradas en hospitales o refugios.</p>
         )}
         {contactEmail && (
-          <a
-            href={
-              `mailto:${contactEmail}` +
-              `?subject=${encodeURIComponent('Quiero subir datos de un sitio (rescatados)')}` +
-              `&body=${encodeURIComponent(
-                'Hola,\n\n' +
-                  'Quiero subir/compartir datos de un sitio (hospital o refugio) para el buscador de rescatados.\n\n' +
-                  'Sitio / hospital: \n' +
-                  'Persona de contacto: \n' +
-                  'Teléfono: \n' +
-                  'Detalles: \n\n' +
-                  'Adjunto el archivo con la información.\n\n' +
-                  'Gracias.'
-              )}`
-            }
-            className="badge primary"
-            style={{
-              display: 'inline-flex',
-              marginTop: '1rem',
-              padding: '0.6rem 1.25rem',
-              textDecoration: 'none',
-              background: 'var(--primary)',
-              cursor: 'pointer',
-            }}
-          >
-            Contacto / Subir datos de un sitio
-          </a>
+          <p className="text-muted" style={{ marginTop: '1rem' }}>
+            Si deseas ponerte en contacto para aportar una lista, escribe al correo:{' '}
+            <strong>{contactEmail}</strong>
+          </p>
         )}
       </header>
 
