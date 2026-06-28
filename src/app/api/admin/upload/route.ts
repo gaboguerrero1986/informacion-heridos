@@ -30,16 +30,20 @@ export async function POST(request: Request) {
     const recordsToInsert = rows.map(row => {
       const normalizedRow: any = {};
       for (const key in row) {
-        normalizedRow[key.trim().toLowerCase()] = row[key];
+        // Remove spaces, convert to lowercase, and remove accents
+        const cleanKey = key.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        normalizedRow[cleanKey] = row[key];
       }
 
       if (!normalizedRow.nombre && !normalizedRow.nombres && !normalizedRow.name) {
         return null;
       }
 
+      const cedulaValue = normalizedRow.cedula || normalizedRow.ci || normalizedRow.documento || normalizedRow.identificacion || normalizedRow.dni;
+
       return {
         nombre: String(normalizedRow.nombre || normalizedRow.nombres || normalizedRow.name || ''),
-        cedula: normalizedRow.cedula ? String(normalizedRow.cedula) : null,
+        cedula: cedulaValue ? String(cedulaValue) : null,
         edad: normalizedRow.edad ? String(normalizedRow.edad) : null,
         procedencia: normalizedRow.procedencia ? String(normalizedRow.procedencia) : null,
         nota: normalizedRow.nota ? String(normalizedRow.nota) : null,
