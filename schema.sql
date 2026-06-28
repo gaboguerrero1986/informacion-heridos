@@ -45,3 +45,13 @@ CREATE INDEX IF NOT EXISTS visitas_visitor_idx ON visitas (visitor_id);
 CREATE INDEX IF NOT EXISTS visitas_created_idx ON visitas (created_at);
 
 ALTER TABLE visitas ENABLE ROW LEVEL SECURITY;
+
+-- 7. Tabla de configuración (clave-valor). Ej: el correo de contacto editable
+-- desde el panel admin. Solo el backend (service_role) escribe/lee.
+CREATE TABLE IF NOT EXISTS configuracion (
+  clave TEXT PRIMARY KEY,
+  valor TEXT,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE configuracion ENABLE ROW LEVEL SECURITY;

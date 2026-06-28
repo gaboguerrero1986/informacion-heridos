@@ -30,8 +30,8 @@ export default function Home() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalResults, setTotalResults] = useState(0);
 
-  // Correo de contacto (configurable). Si no está definido, no se muestra el botón.
-  const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || '';
+  // Correo de contacto (editable desde el panel admin). Si está vacío, no se muestra el botón.
+  const [contactEmail, setContactEmail] = useState('');
 
   useEffect(() => {
     // Cargar hospitales dinámicamente
@@ -77,8 +77,20 @@ export default function Home() {
       }
     };
 
+    // Cargar el correo de contacto configurado.
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        setContactEmail(data.contactEmail || '');
+      } catch (err) {
+        console.error('Error cargando configuración', err);
+      }
+    };
+
     fetchHospitals();
     fetchStats();
+    fetchConfig();
     logVisit();
   }, []);
 
