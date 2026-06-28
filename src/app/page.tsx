@@ -181,7 +181,20 @@ export default function Home() {
         )}
         {contactEmail && (
           <a
-            href={`mailto:${contactEmail}?subject=${encodeURIComponent('Quiero subir datos de un sitio (rescatados)')}`}
+            href={
+              `mailto:${contactEmail}` +
+              `?subject=${encodeURIComponent('Quiero subir datos de un sitio (rescatados)')}` +
+              `&body=${encodeURIComponent(
+                'Hola,\n\n' +
+                  'Quiero subir/compartir datos de un sitio (hospital o refugio) para el buscador de rescatados.\n\n' +
+                  'Sitio / hospital: \n' +
+                  'Persona de contacto: \n' +
+                  'Teléfono: \n' +
+                  'Detalles: \n\n' +
+                  'Adjunto el archivo con la información.\n\n' +
+                  'Gracias.'
+              )}`
+            }
             className="badge primary"
             style={{
               display: 'inline-flex',
