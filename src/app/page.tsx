@@ -39,15 +39,12 @@ export default function Home() {
     fetchHospitals();
   }, []);
 
-  // Debounce para la búsqueda (busca automáticamente al dejar de escribir)
+  // Debounce para la búsqueda (busca automáticamente al dejar de escribir).
+  // Si no hay nombre (o es muy corto), mostramos el listado alfabético completo.
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
-      if (query.trim().length >= 2 || hospital !== '') {
-        performSearch(query, hospital);
-      } else {
-        setResults([]);
-        setHasSearched(false);
-      }
+      const q = query.trim().length >= 2 ? query : '';
+      performSearch(q, hospital);
     }, 500);
 
     return () => clearTimeout(delayDebounceFn);
@@ -127,8 +124,14 @@ export default function Home() {
 
       {!loading && hasSearched && results.length === 0 && !error && (
         <div className="state-message">
-          <p>No se encontraron resultados para "{query}".</p>
-          <p className="text-muted mt-4">Intenta buscar solo por el primer nombre o primer apellido si la búsqueda exacta no funciona.</p>
+          {query.trim().length >= 2 ? (
+            <>
+              <p>No se encontraron resultados para "{query}".</p>
+              <p className="text-muted mt-4">Intenta buscar solo por el primer nombre o primer apellido si la búsqueda exacta no funciona.</p>
+            </>
+          ) : (
+            <p>Aún no hay personas registradas{hospital ? ` en "${hospital}"` : ''}.</p>
+          )}
         </div>
       )}
 
@@ -137,6 +140,14 @@ export default function Home() {
           <div className="loader"></div>
           <p className="mt-4 text-muted">Buscando registros...</p>
         </div>
+      )}
+
+      {!loading && results.length > 0 && (
+        <p className="text-muted" style={{ marginBottom: '1rem' }}>
+          {query.trim().length >= 2
+            ? `${results.length} resultado(s) para "${query}".`
+            : `Mostrando ${results.length} persona(s) en orden alfabético${hospital ? ` — ${hospital}` : ''}.`}
+        </p>
       )}
 
       {!loading && results.length > 0 && (
@@ -194,11 +205,6 @@ export default function Home() {
         </section>
       )}
       
-      {!hasSearched && query.length < 2 && !loading && (
-         <div className="state-message">
-           <p className="text-muted">Ingresa al menos 2 caracteres del nombre o la cédula para comenzar la búsqueda.</p>
-         </div>
-      )}
     </main>
   );
 }

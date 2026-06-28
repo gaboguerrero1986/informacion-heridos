@@ -1,73 +1,81 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { consolidatePersonas, Persona } from '@/lib/dedupePersonas';
+
+// Deduplica para mostrar: agrupa por hospital y fusiona la misma persona
+// (por cédula, o por nombre cuando no hay cédula). Así no aparece dos veces.
+function dedupeForDisplay(rows: Persona[]): Persona[] {
+  const groups = new Map<string, Persona[]>();
+  for (const r of rows) {
+    const key = (r.hospital || '').toLowerCase().trim();
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(r);
+  }
+  const out: Persona[] = [];
+  for (const g of groups.values()) {
+    const { inserts } = consolidatePersonas([], g);
+    out.push(...inserts);
+  }
+  return out;
+}
+
+// Orden alfabético por nombre, sin distinguir mayúsculas ni acentos.
+function sortByName(rows: Persona[]): Persona[] {
+  return rows.sort((a, b) =>
+    (a.nombre || '').localeCompare(b.nombre || '', 'es', { sensitivity: 'base' })
+  );
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const q = searchParams.get('q');
-  const hospital = searchParams.get('hospital');
-
-  if (!q) {
-    return NextResponse.json({ data: [] });
-  }
+  const q = (searchParams.get('q') || '').trim();
+  const hospital = (searchParams.get('hospital') || '').trim();
 
   try {
-    let query = supabase.from('personas_rescatadas').select('*');
+    // CASO 1: sin texto de búsqueda -> listado alfabético de todas las personas
+    // (opcionalmente filtrado por hospital). Incluye a quienes no tienen cédula.
+    if (q === '') {
+      let query = supabase.from('personas_rescatadas').select('*');
+      if (hospital !== '') {
+        query = query.ilike('hospital', `%${hospital}%`);
+      }
+      query = query.order('nombre', { ascending: true }).limit(1000);
 
-    // Limpiamos la búsqueda de puntos, guiones y espacios en caso de que estén buscando una cédula
-    const cleanQ = q.replace(/[\.\-\s]/g, '');
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching data:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
 
-    // Buscamos tanto por nombre como por cédula (con ilike para permitir búsquedas parciales)
-    // Si el usuario escribe una parte de la cédula o una parte del nombre, lo encontrará.
-    query = query.or(`nombre.ilike.%${q}%,cedula.ilike.%${cleanQ}%`);
-
-    if (hospital && hospital.trim() !== '') {
-      // Uso de ilike para que sea insensible a mayúsculas
-      query = query.ilike('hospital', `%${hospital.trim()}%`);
+      const result = sortByName(dedupeForDisplay((data || []) as Persona[]));
+      return NextResponse.json({ data: result, listing: true, total: result.length });
     }
 
-    // Ordenar por fecha de creación descendente
-    query = query.order('created_at', { ascending: false }).limit(50);
+    // CASO 2: búsqueda por nombre o cédula.
+    let query = supabase.from('personas_rescatadas').select('*');
+
+    // Limpiamos la búsqueda de puntos, guiones y espacios por si es una cédula.
+    const cleanQ = q.replace(/[.\-\s]/g, '');
+    // Escapamos comas y paréntesis para no romper la sintaxis del filtro .or() de PostgREST.
+    const safeQ = q.replace(/[(),]/g, ' ');
+    const safeCedula = cleanQ.replace(/[(),]/g, '');
+
+    query = query.or(`nombre.ilike.%${safeQ}%,cedula.ilike.%${safeCedula}%`);
+
+    if (hospital !== '') {
+      query = query.ilike('hospital', `%${hospital}%`);
+    }
+
+    query = query.limit(100);
 
     const { data, error } = await query;
-
     if (error) {
       console.error('Error fetching data:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Algoritmo de desduplicación
-    const dedupMap = new Map();
-
-    (data || []).forEach((item) => {
-      // Llave única basada en el nombre exacto y el hospital
-      const key = `${item.nombre.toLowerCase().trim()}_${item.hospital?.toLowerCase().trim() || ''}`;
-
-      if (!dedupMap.has(key)) {
-        dedupMap.set(key, { ...item }); // Clonamos para poder modificarlo
-      } else {
-        const existing = dedupMap.get(key);
-        
-        // 1. Si el nuevo tiene cédula y el viejo no, el nuevo gana la posición principal
-        if (item.cedula && !existing.cedula) {
-          // Traspasamos datos viejos al nuevo si el nuevo no los tiene
-          if (!item.edad && existing.edad) item.edad = existing.edad;
-          if (!item.nota && existing.nota) item.nota = existing.nota;
-          dedupMap.set(key, { ...item });
-        } 
-        // 2. Si el viejo ya tenía cédula o ambos son iguales, solo enriquecemos los datos que falten
-        else {
-          if (!existing.edad && item.edad) existing.edad = item.edad;
-          if (!existing.procedencia && item.procedencia) existing.procedencia = item.procedencia;
-          if (item.nota && item.nota !== existing.nota) {
-            existing.nota = existing.nota ? `${existing.nota} | ${item.nota}` : item.nota;
-          }
-        }
-      }
-    });
-
-    const dedupedData = Array.from(dedupMap.values());
-
-    return NextResponse.json({ data: dedupedData });
+    const result = sortByName(dedupeForDisplay((data || []) as Persona[]));
+    return NextResponse.json({ data: result });
   } catch (err) {
     console.error('Unexpected error:', err);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
