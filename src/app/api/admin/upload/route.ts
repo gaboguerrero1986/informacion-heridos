@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import * as xlsx from 'xlsx';
 import { parseRescatados } from '@/lib/parseRescatados';
+import { canonicalizeHospital, uniqueHospitalNames } from '@/lib/normalizeHospital';
+import { consolidatePersonas, Persona } from '@/lib/dedupePersonas';
 
 export async function POST(request: Request) {
   try {
@@ -30,7 +32,22 @@ export async function POST(request: Request) {
     // y dejamos que el parser detecte cabecera, mapee columnas y limpie la basura.
     const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as unknown[][];
 
-    const { records, stats, error: parseError } = parseRescatados(rows, hospitalName.trim());
+    // Inicializamos el cliente con service_role para saltar el RLS (escritura desde backend).
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // 1. Unificamos el nombre del hospital con los que ya existen en la base.
+    const { data: hospRows } = await adminSupabase
+      .from('personas_rescatadas')
+      .select('hospital')
+      .not('hospital', 'is', null);
+    const existingHospitals = uniqueHospitalNames((hospRows || []).map((r) => r.hospital));
+    const canonicalHospital = canonicalizeHospital(hospitalName.trim(), existingHospitals);
+
+    // 2. Parseamos el Excel usando ya el nombre unificado del hospital.
+    const { records, stats, error: parseError } = parseRescatados(rows, canonicalHospital);
 
     if (parseError) {
       return NextResponse.json({ success: false, message: parseError }, { status: 400 });
@@ -43,25 +60,57 @@ export async function POST(request: Request) {
       );
     }
 
-    // Inicializamos el cliente con service_role para saltar el RLS (escritura desde backend).
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    // 3. Traemos los registros que ya existen de ese hospital y consolidamos duplicados.
+    const { data: existingRows } = await adminSupabase
+      .from('personas_rescatadas')
+      .select('*')
+      .eq('hospital', canonicalHospital);
+
+    const { inserts, updates, mergedCount } = consolidatePersonas(
+      (existingRows || []) as Persona[],
+      records as Persona[]
     );
 
-    const { error } = await adminSupabase.from('personas_rescatadas').insert(records);
+    // 4. Escribimos: insertamos los nuevos y actualizamos los que se enriquecieron.
+    const cols = (p: Persona, withId: boolean) => ({
+      ...(withId && p.id ? { id: p.id } : {}),
+      nombre: p.nombre,
+      cedula: p.cedula,
+      edad: p.edad,
+      procedencia: p.procedencia,
+      nota: p.nota,
+      hospital: p.hospital,
+      estado: p.estado,
+    });
 
-    if (error) {
-      throw error;
+    if (inserts.length > 0) {
+      const { error } = await adminSupabase
+        .from('personas_rescatadas')
+        .insert(inserts.map((p) => cols(p, false)));
+      if (error) throw error;
+    }
+
+    if (updates.length > 0) {
+      const { error } = await adminSupabase
+        .from('personas_rescatadas')
+        .upsert(updates.map((p) => cols(p, true)), { onConflict: 'id' });
+      if (error) throw error;
     }
 
     const detectados = Object.keys(stats.detectedColumns).join(', ') || 'ninguna';
-    const omitidas = stats.skipped > 0 ? ` (${stats.skipped} fila(s) omitidas por no tener nombre válido)` : '';
+    const omitidas = stats.skipped > 0 ? ` ${stats.skipped} fila(s) omitidas por no tener nombre válido.` : '';
+    const fusionados = mergedCount > 0 ? ` ${mergedCount} duplicado(s) fusionado(s) con registros existentes.` : '';
 
     return NextResponse.json({
       success: true,
-      message: `Se insertaron ${records.length} registros${omitidas}. Columnas detectadas: ${detectados}.`,
-      count: records.length,
+      message:
+        `Hospital unificado como "${canonicalHospital}". ` +
+        `${inserts.length} registro(s) nuevo(s) insertado(s),${updates.length > 0 ? ` ${updates.length} actualizado(s),` : ''}` +
+        `${fusionados}${omitidas} Columnas detectadas: ${detectados}.`,
+      count: inserts.length,
+      merged: mergedCount,
+      updated: updates.length,
+      hospital: canonicalHospital,
       stats,
     });
   } catch (error: any) {
