@@ -64,11 +64,12 @@ async function main() {
         return null;
       }
 
-      const cedulaValue = normalizedRow.cedula || normalizedRow.ci || normalizedRow.documento || normalizedRow.identificacion || normalizedRow.dni;
+      const cedulaRaw = normalizedRow.cedula || normalizedRow.ci || normalizedRow.documento || normalizedRow.identificacion || normalizedRow.dni;
+      const cedulaValue = cedulaRaw ? String(cedulaRaw).replace(/[\.\-\s]/g, '') : null;
 
       return {
         nombre: String(normalizedRow.nombre || normalizedRow.nombres || normalizedRow.name || ''),
-        cedula: cedulaValue ? String(cedulaValue) : null,
+        cedula: cedulaValue,
         edad: normalizedRow.edad ? String(normalizedRow.edad) : null,
         procedencia: normalizedRow.procedencia ? String(normalizedRow.procedencia) : null,
         nota: normalizedRow.nota ? String(normalizedRow.nota) : null,

@@ -21,9 +21,11 @@ export async function POST(request: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
+    const cedulaClean = cedula ? String(cedula).replace(/[\.\-\s]/g, '') : null;
+
     const record = {
       nombre: String(nombre).trim(),
-      cedula: cedula ? String(cedula).trim() : null,
+      cedula: cedulaClean,
       edad: edad ? String(edad).trim() : null,
       procedencia: procedencia ? String(procedencia).trim() : null,
       hospital: String(hospital).trim(),

@@ -155,7 +155,9 @@ export default function Home() {
                 {persona.cedula && (
                   <div className="info-item">
                     <span className="info-label">Cédula</span>
-                    <span className="info-value">{persona.cedula}</span>
+                    <span className="info-value">
+                      {persona.cedula.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}
+                    </span>
                   </div>
                 )}
                 {persona.edad && (

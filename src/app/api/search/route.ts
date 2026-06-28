@@ -13,17 +13,12 @@ export async function GET(request: Request) {
   try {
     let query = supabase.from('personas_rescatadas').select('*');
 
-    // Comprobamos si la búsqueda parece una cédula (solo números o guiones)
-    const isCedula = /^[0-9\-]+$/.test(q);
+    // Limpiamos la búsqueda de puntos, guiones y espacios en caso de que estén buscando una cédula
+    const cleanQ = q.replace(/[\.\-\s]/g, '');
 
-    if (isCedula) {
-      // Búsqueda exacta por cédula
-      query = query.eq('cedula', q);
-    } else {
-      // Búsqueda difusa por nombre usando pg_trgm (ilike también funciona bien con trigramas para búsqueda parcial)
-      // Supabase por defecto soporta textSearch u operaciones ilike.
-      query = query.ilike('nombre', `%${q}%`);
-    }
+    // Buscamos tanto por nombre como por cédula (con ilike para permitir búsquedas parciales)
+    // Si el usuario escribe una parte de la cédula o una parte del nombre, lo encontrará.
+    query = query.or(`nombre.ilike.%${q}%,cedula.ilike.%${cleanQ}%`);
 
     if (hospital && hospital.trim() !== '') {
       // Uso de ilike para que sea insensible a mayúsculas
