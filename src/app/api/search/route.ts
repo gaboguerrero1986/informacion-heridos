@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 import { consolidatePersonas, Persona } from '@/lib/dedupePersonas';
+import { normalizeText } from '@/lib/normalizeHospital';
 
 // Trae TODAS las filas que cumplan la consulta, en bloques de 1000 (límite de
 // Supabase por petición). Así la deduplicación y la paginación son correctas
@@ -27,7 +28,8 @@ async function fetchAll(makeQuery: () => any): Promise<Persona[]> {
 function dedupeForDisplay(rows: Persona[]): Persona[] {
   const groups = new Map<string, Persona[]>();
   for (const r of rows) {
-    const key = (r.hospital || '').toLowerCase().trim();
+    // Agrupamos sin distinguir acentos ni mayúsculas ("Periférico" = "Periferico").
+    const key = normalizeText(r.hospital || '');
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(r);
   }
@@ -59,12 +61,10 @@ export async function GET(request: Request) {
     let rows: Persona[];
 
     if (q === '') {
-      // CASO 1: sin texto -> listado completo (opcionalmente filtrado por hospital).
-      rows = await fetchAll(() => {
-        let query = supabase.from('personas_rescatadas').select('*');
-        if (hospital !== '') query = query.ilike('hospital', `%${hospital}%`);
-        return query.order('nombre', { ascending: true });
-      });
+      // CASO 1: sin texto -> listado completo.
+      rows = await fetchAll(() =>
+        supabase.from('personas_rescatadas').select('*').order('nombre', { ascending: true })
+      );
     } else {
       // CASO 2: búsqueda por nombre o cédula.
       // La cédula se busca por SOLO dígitos: "14.072.268" / "V-14.072.268" -> 14072268.
@@ -74,11 +74,16 @@ export async function GET(request: Request) {
       if (digits.length >= 4) orParts.push(`cedula.ilike.%${digits}%`);
       const orStr = orParts.join(',');
 
-      rows = await fetchAll(() => {
-        let query = supabase.from('personas_rescatadas').select('*').or(orStr);
-        if (hospital !== '') query = query.ilike('hospital', `%${hospital}%`);
-        return query;
-      });
+      rows = await fetchAll(() =>
+        supabase.from('personas_rescatadas').select('*').or(orStr)
+      );
+    }
+
+    // Filtro por hospital en JS, insensible a acentos y mayúsculas
+    // ("Periférico" coincide con "Periferico" y viceversa).
+    if (hospital !== '') {
+      const hKey = normalizeText(hospital);
+      rows = rows.filter((r) => normalizeText(r.hospital || '') === hKey);
     }
 
     // Deduplicar + ordenar todo el conjunto, y recién entonces paginar.

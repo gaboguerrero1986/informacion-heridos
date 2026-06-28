@@ -51,6 +51,12 @@ const FIELD_SYNONYMS: Record<keyof Omit<RescatadoRecord, 'hospital' | 'estado'>,
   ],
 };
 
+// Columna de apellido (separada del nombre). Si el Excel trae "Nombre" y
+// "Apellido" en columnas distintas, se combinan en "Nombre Apellido".
+const APELLIDO_SYNONYMS = [
+  'apellido', 'apellidos', 'surname', 'lastname', 'apellidopaterno', 'primerapellido',
+];
+
 // Valores que en la práctica significan "no hay dato".
 const EMPTY_TOKENS = new Set([
   '', 'sd', 'na', 'ninguno', 'ninguna', 'nodisponible', 'sininformacion',
@@ -162,6 +168,12 @@ export function parseRescatados(rows: unknown[][], hospitalName: string): ParseR
   const colMap = buildColumnMap(rows[headerRowIndex]);
   const dataRows = rows.slice(headerRowIndex + 1);
 
+  // Columna de apellido aparte (si existe y no es la misma que la de nombre).
+  let apellidoIdx = rows[headerRowIndex].findIndex((cell) =>
+    APELLIDO_SYNONYMS.includes(normalizeKey(cell))
+  );
+  if (apellidoIdx === colMap.nombre) apellidoIdx = -1;
+
   const records: RescatadoRecord[] = [];
   let skipped = 0;
 
@@ -174,7 +186,13 @@ export function parseRescatados(rows: unknown[][], hospitalName: string): ParseR
     // Saltar filas totalmente vacías.
     if (!row || row.every((c) => cleanValue(c) === null)) continue;
 
-    const nombre = cleanValue(get(row, 'nombre'));
+    let nombre = cleanValue(get(row, 'nombre'));
+    // Si hay una columna de apellido aparte, la unimos: "Nombre Apellido".
+    const apellido = apellidoIdx >= 0 ? cleanValue(row[apellidoIdx]) : null;
+    if (apellido) {
+      nombre = nombre ? `${nombre} ${apellido}` : apellido;
+    }
+
     if (!nombre || !/[a-záéíóúñ]/i.test(nombre)) {
       // Sin nombre legible no sirve para el buscador.
       skipped++;

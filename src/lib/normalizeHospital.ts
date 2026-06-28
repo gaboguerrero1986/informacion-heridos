@@ -25,7 +25,8 @@ export function normalizeText(s: string): string {
     .trim()
     .toLowerCase()
     .normalize('NFD')
-    .replace(/[^a-z0-9\s]/g, ' ') // quita acentos (combinantes) y símbolos
+    .replace(/\p{Diacritic}/gu, '') // quita acentos: é -> e, ñ -> n
+    .replace(/[^a-z0-9\s]/g, ' ') // otros símbolos -> espacio
     .replace(/\s+/g, ' ')
     .trim();
 }
