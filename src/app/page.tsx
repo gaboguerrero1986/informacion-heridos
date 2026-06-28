@@ -56,8 +56,30 @@ export default function Home() {
         console.error('Error cargando estadísticas', err);
       }
     };
+    // Registrar la visita una sola vez por navegador (cuenta personas, no recargas).
+    const logVisit = () => {
+      try {
+        if (localStorage.getItem('vh_visited')) return;
+        let vid = localStorage.getItem('vh_visitor');
+        if (!vid) {
+          vid = (crypto as any)?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+          localStorage.setItem('vh_visitor', vid);
+        }
+        fetch('/api/visit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ visitor_id: vid }),
+        })
+          .then(() => localStorage.setItem('vh_visited', '1'))
+          .catch(() => {});
+      } catch {
+        // localStorage no disponible: ignoramos.
+      }
+    };
+
     fetchHospitals();
     fetchStats();
+    logVisit();
   }, []);
 
   // Al cambiar la búsqueda o el hospital, volvemos a la página 1.

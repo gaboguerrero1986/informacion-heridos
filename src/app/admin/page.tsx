@@ -1,11 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export default function AdminPage() {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
+  // Estadística de visitas
+  const [visitStats, setVisitStats] = useState<{ total: number; hoy: number } | null>(null);
+  const [visitError, setVisitError] = useState('');
+
   const [file, setFile] = useState<File | null>(null);
   const [hospital, setHospital] = useState('');
   const [uploadStatus, setUploadStatus] = useState('');
@@ -30,6 +34,28 @@ export default function AdminPage() {
   const [editForm, setEditForm] = useState<any>({});
 
   const [loading, setLoading] = useState(false);
+
+  // Al autenticar, cargamos la estadística de visitas.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const fetchVisits = async () => {
+      try {
+        const res = await fetch('/api/admin/visits', {
+          headers: { Authorization: `Bearer ${password}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setVisitStats({ total: data.total ?? 0, hoy: data.hoy ?? 0 });
+          setVisitError('');
+        } else {
+          setVisitError(data.message || 'No se pudieron cargar las visitas.');
+        }
+      } catch {
+        setVisitError('No se pudieron cargar las visitas.');
+      }
+    };
+    fetchVisits();
+  }, [isAuthenticated, password]);
 
   const handleAdminSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -244,6 +270,31 @@ export default function AdminPage() {
       </header>
 
       <div className="results-grid" style={{ gridTemplateColumns: '1fr', gap: '2rem' }}>
+        {/* Estadística de visitas */}
+        <section className="card">
+          <h2 className="card-title" style={{ marginBottom: '1rem' }}>Visitas a la página</h2>
+          {visitStats ? (
+            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700 }}>
+                  {visitStats.total.toLocaleString('es')}
+                </div>
+                <div className="text-muted">personas han entrado en total</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '2.25rem', fontWeight: 700 }}>
+                  {visitStats.hoy.toLocaleString('es')}
+                </div>
+                <div className="text-muted">han entrado hoy</div>
+              </div>
+            </div>
+          ) : visitError ? (
+            <p className="text-muted">{visitError}</p>
+          ) : (
+            <p className="text-muted">Cargando…</p>
+          )}
+        </section>
+
         {/* Sección Subida de Excel */}
         <section className="card">
           <h2 className="card-title" style={{ marginBottom: '1rem' }}>1. Subir Archivo Excel</h2>
