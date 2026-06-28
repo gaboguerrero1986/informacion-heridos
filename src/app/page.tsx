@@ -136,6 +136,12 @@ export default function Home() {
               </div>
               
               <div className="card-body">
+                {persona.cedula && (
+                  <div className="info-item">
+                    <span className="info-label">Cédula</span>
+                    <span className="info-value">{persona.cedula}</span>
+                  </div>
+                )}
                 {persona.edad && (
                   <div className="info-item">
                     <span className="info-label">Edad</span>
