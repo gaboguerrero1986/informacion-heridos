@@ -24,6 +24,12 @@ export default function Home() {
   const [error, setError] = useState('');
   const [stats, setStats] = useState<{ total: number; lastUpdate: string | null } | null>(null);
 
+  // Paginación (20 por página).
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+
   // Correo de contacto (configurable). Si no está definido, no se muestra el botón.
   const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL || '';
 
@@ -54,30 +60,39 @@ export default function Home() {
     fetchStats();
   }, []);
 
+  // Al cambiar la búsqueda o el hospital, volvemos a la página 1.
+  useEffect(() => {
+    setPage(1);
+  }, [query, hospital]);
+
   // Debounce para la búsqueda (busca automáticamente al dejar de escribir).
   // Si no hay nombre (o es muy corto), mostramos el listado alfabético completo.
   useEffect(() => {
     const delayDebounceFn = setTimeout(() => {
       const q = query.trim().length >= 2 ? query : '';
-      performSearch(q, hospital);
-    }, 500);
+      performSearch(q, hospital, page);
+    }, 400);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [query, hospital]);
+  }, [query, hospital, page]);
 
-  const performSearch = async (q: string, h: string) => {
+  const performSearch = async (q: string, h: string, p: number) => {
     setLoading(true);
     setError('');
     try {
       const url = new URL('/api/search', window.location.origin);
       if (q) url.searchParams.append('q', q);
       if (h) url.searchParams.append('hospital', h);
+      url.searchParams.append('page', String(p));
+      url.searchParams.append('pageSize', String(PAGE_SIZE));
 
       const res = await fetch(url.toString());
       if (!res.ok) throw new Error('Error en la búsqueda');
       const data = await res.json();
-      
+
       setResults(data.data || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalResults(data.total || 0);
       setHasSearched(true);
     } catch (err: any) {
       setError('Hubo un problema conectando con el servidor. Intenta de nuevo.');
@@ -85,6 +100,27 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calcula qué números de página mostrar (ventana alrededor de la actual).
+  const getPageNumbers = (): (number | '...')[] => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    const pages: (number | '...')[] = [1];
+    const start = Math.max(2, page - 2);
+    const end = Math.min(totalPages - 1, page + 2);
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (end < totalPages - 1) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
+
+  const goToPage = (p: number) => {
+    if (p < 1 || p > totalPages || p === page) return;
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const getBadgeClass = (estado: string) => {
@@ -185,8 +221,9 @@ export default function Home() {
       {!loading && results.length > 0 && (
         <p className="text-muted" style={{ marginBottom: '1rem' }}>
           {query.trim().length >= 2
-            ? `${results.length} resultado(s) para "${query}".`
-            : `Mostrando ${results.length} persona(s) en orden alfabético${hospital ? ` — ${hospital}` : ''}.`}
+            ? `${totalResults} resultado(s) para "${query}".`
+            : `${totalResults} persona(s) registrada(s)${hospital ? ` — ${hospital}` : ''} (orden alfabético).`}
+          {totalPages > 1 && ` — Página ${page} de ${totalPages}.`}
         </p>
       )}
 
@@ -244,7 +281,63 @@ export default function Home() {
           ))}
         </section>
       )}
-      
+
+      {!loading && results.length > 0 && totalPages > 1 && (
+        <nav
+          aria-label="Paginación"
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '0.5rem',
+            marginTop: '2rem',
+          }}
+        >
+          <button
+            className="badge"
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            style={{ border: 'none', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.4 : 1, background: '#444' }}
+          >
+            ‹ Anterior
+          </button>
+
+          {getPageNumbers().map((p, idx) =>
+            p === '...' ? (
+              <span key={`dots-${idx}`} className="text-muted" style={{ padding: '0 0.25rem' }}>
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                className={`badge ${p === page ? 'primary' : ''}`}
+                onClick={() => goToPage(p)}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  minWidth: '2.5rem',
+                  justifyContent: 'center',
+                  background: p === page ? 'var(--primary)' : '#444',
+                  fontWeight: p === page ? 700 : 400,
+                }}
+              >
+                {p}
+              </button>
+            )
+          )}
+
+          <button
+            className="badge"
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= totalPages}
+            style={{ border: 'none', cursor: page >= totalPages ? 'not-allowed' : 'pointer', opacity: page >= totalPages ? 0.4 : 1, background: '#444' }}
+          >
+            Siguiente ›
+          </button>
+        </nav>
+      )}
+
     </main>
   );
 }
