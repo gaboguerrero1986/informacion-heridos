@@ -67,12 +67,14 @@ export function canonicalizeHospital(incoming: string, existingNames: string[]):
   // Sin palabras distintivas (ej. solo "Hospital"): no hay con qué agrupar.
   if (inTokens.length === 0) return titleCase(incoming);
 
-  const inSet = new Set(inTokens);
-
-  // Buscamos hospitales existentes cuyas palabras se contengan en cualquier dirección.
+  // Solo agrupamos cuando lo que se escribe es una FORMA CORTA de un hospital
+  // que ya existe (todas sus palabras están dentro del existente). Ej:
+  // "carreño" -> "Hospital Perez Carreño". NO al revés: si escribes el nombre
+  // completo ("Hospital Periferico de Catia") no se colapsa a un fragmento
+  // suelto que ya exista ("Catia"), porque serían lugares distintos.
   const matches = existingNames.filter((name) => {
-    const t = hospitalTokens(name);
-    return isSubset(inTokens, new Set(t)) || isSubset(t, inSet);
+    const existingSet = new Set(hospitalTokens(name));
+    return isSubset(inTokens, existingSet);
   });
 
   if (matches.length > 0) {
