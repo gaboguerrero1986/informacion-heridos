@@ -22,7 +22,66 @@ export default function AdminPage() {
   const [manualNota, setManualNota] = useState('');
   const [manualStatus, setManualStatus] = useState('');
 
+  // Search and Manage State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<any>({});
+
   const [loading, setLoading] = useState(false);
+
+  const handleAdminSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+      const data = await res.json();
+      setSearchResults(data.data || []);
+    } catch (err) {
+      console.error(err);
+    }
+    setIsSearching(false);
+  };
+
+  const handleAdminDelete = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este registro permanentemente?')) return;
+    try {
+      const res = await fetch('/api/admin/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${password}` },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSearchResults(searchResults.filter(item => item.id !== id));
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert('Error eliminando');
+    }
+  };
+
+  const handleAdminUpdate = async (id: string) => {
+    try {
+      const res = await fetch('/api/admin/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${password}` },
+        body: JSON.stringify({ id, ...editForm })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSearchResults(searchResults.map(item => item.id === id ? { ...item, ...editForm } : item));
+        setEditingId(null);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      alert('Error actualizando');
+    }
+  };
 
   const handleManualInsert = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,6 +347,63 @@ export default function AdminPage() {
               </div>
             )}
           </form>
+        </section>
+
+        {/* Sección Buscar y Gestionar */}
+        <section className="card" style={{ gridColumn: '1 / -1' }}>
+          <h2 className="card-title" style={{ marginBottom: '1rem' }}>4. Buscar y Gestionar Registros</h2>
+          <form onSubmit={handleAdminSearch} style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+            <input 
+              type="text" 
+              className="input-field" 
+              placeholder="Buscar por nombre o cédula para editar/eliminar..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button type="submit" className="badge primary" style={{ border: 'none', cursor: 'pointer', background: 'var(--primary)', padding: '0.75rem 1.5rem', fontSize: '1rem' }} disabled={isSearching}>
+              {isSearching ? 'Buscando...' : 'Buscar'}
+            </button>
+          </form>
+
+          {searchResults.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {searchResults.map((item) => (
+                <div key={item.id} style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '1rem', borderRadius: '12px', background: 'rgba(255,255,255,0.03)' }}>
+                  
+                  {editingId === item.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <input className="input-field" value={editForm.nombre || ''} onChange={e => setEditForm({...editForm, nombre: e.target.value})} placeholder="Nombre *" />
+                      <input className="input-field" value={editForm.cedula || ''} onChange={e => setEditForm({...editForm, cedula: e.target.value})} placeholder="Cédula" />
+                      <input className="input-field" value={editForm.hospital || ''} onChange={e => setEditForm({...editForm, hospital: e.target.value})} placeholder="Hospital *" />
+                      <input className="input-field" value={editForm.estado || ''} onChange={e => setEditForm({...editForm, estado: e.target.value})} placeholder="Estado" />
+                      
+                      <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                        <button onClick={() => handleAdminUpdate(item.id)} className="badge success" style={{ border: 'none', cursor: 'pointer' }}>Guardar</button>
+                        <button onClick={() => setEditingId(null)} className="badge" style={{ border: 'none', cursor: 'pointer', background: '#555' }}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h3 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>{item.nombre}</h3>
+                      <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '1rem' }}>
+                        {item.cedula ? `C.I: ${item.cedula} | ` : ''} Hospital: {item.hospital} | Estado: {item.estado}
+                      </p>
+                      
+                      <div style={{ display: 'flex', gap: '1rem' }}>
+                        <button onClick={() => { setEditingId(item.id); setEditForm(item); }} className="badge warning" style={{ border: 'none', cursor: 'pointer', background: '#3b82f6' }}>Editar</button>
+                        <button onClick={() => handleAdminDelete(item.id)} className="badge danger" style={{ border: 'none', cursor: 'pointer', background: 'var(--danger)' }}>Eliminar</button>
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              ))}
+            </div>
+          )}
+          {searchResults.length === 0 && searchQuery && !isSearching && (
+            <p className="text-muted">No se encontraron resultados.</p>
+          )}
         </section>
       </div>
     </main>
