@@ -258,7 +258,7 @@ export default function Home() {
               <div className="card-header">
                 <div>
                   <h2 className="card-title">{persona.nombre}</h2>
-                  {persona.cedula && <p className="card-cedula">C.I: {persona.cedula}</p>}
+                  <p className="card-cedula">C.I: {persona.cedula || 'S/N'}</p>
                 </div>
                 <span className={getBadgeClass(persona.estado)}>{persona.estado || 'Registrado'}</span>
               </div>
